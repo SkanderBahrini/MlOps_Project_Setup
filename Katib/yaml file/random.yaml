@@ -1,0 +1,73 @@
+apiVersion: kubeflow.org/v1beta1
+kind: Experiment
+metadata:
+  namespace: admin
+  name: random
+spec:
+  objective:
+    type: maximize
+    goal: 0.99
+    objectiveMetricName: Recall
+    additionalMetricNames:
+      - Accuracy
+      - Auc
+  algorithm:
+    algorithmName: random
+  parallelTrialCount: 3
+  maxTrialCount: 12
+  maxFailedTrialCount: 3
+  metricsCollectorSpec:
+    collector:
+      kind: StdOut
+  parameters:
+    - name: penalty
+      parameterType: categorical
+      feasibleSpace:
+        list:
+          - l1
+    - name: solver
+      parameterType: categorical
+      feasibleSpace:
+        list:
+          - saga
+          - liblinear
+    - name: class_weight
+      parameterType: categorical
+      feasibleSpace:
+        list:
+          - balanced
+  trialTemplate:
+    primaryContainerName: training-container
+    trialParameters:
+      - name: penalty
+        description: Penalty of lg
+        reference: penalty
+      - name: solver
+        description: Solver of lg
+        reference: solver
+      - name: class_weight
+        description: Class weight
+        reference: class_weight
+    trialSpec:
+      apiVersion: batch/v1
+      kind: Job
+      spec:
+        template:
+          metadata:
+            annotations:
+              sidecar.istio.io/inject: "false"
+          spec:
+            containers:
+              - name: training-container
+                image: docker.io/skander96/katib:15
+                command:
+                  - "python3"
+                  - "/app/train.py"
+                  - "--penalty=${trialParameters.penalty}"
+                  - "--solver=${trialParameters.solver}"
+                  - "--class_weight=${trialParameters.class_weight}"
+                resources:
+                  limits:
+                    memory: "1Gi"
+                    cpu: "0.5"
+            restartPolicy: Never
